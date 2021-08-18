@@ -74,7 +74,7 @@ impl Verifiable for NDoublingPointClaim{
 
         let m_trace : RationalExpression =  ((Trace(0,0) + Trace(0,0) + Trace(0,0)) * Trace(0,0) + Constant(FieldElement::one()) ) / ( Trace(1,0) + Trace(1,0));
 
-        Constraints::from_expressions((trace_length, 4), seed, vec![
+        Constraints::from_expressions((trace_length, 7), seed, vec![
             // Boundary Constraints
             (Trace(0, 0) - &self.x_start) * on_row(0),
             (Trace(1, 0) - &self.y_start) * on_row(0),
@@ -82,23 +82,23 @@ impl Verifiable for NDoublingPointClaim{
             (Trace(1, 0) - &self.y_result) * on_row(self.index),
 
             // check that result of each row is "previous" on  the next row
-            (Trace(2, 0) - Trace(0, 1)) * every_row(),
-            (Trace(3, 0) - Trace(1, 1)) * every_row(),
+            (Trace(5, 0) - Trace(0, 1)) * every_row(),
+            (Trace(6, 0) - Trace(1, 1)) * every_row(),
 
-            // check the doubling steps
-            // let m = ((x + x + x) * x + FieldElement::one()) / (y + y);
-            // trace[(i, 2)] = &m * &m - x - x;
-            // trace[(i, 3)] = m * (x - &trace[(i, 2)]) - y;
-            // Trace(0,0) * every_row(), ok
-            // Trace(1,0) * every_row(), ok
-            // Trace(2, 0) * every_row(), ok
-            // Trace(3, 0) * every_row(), ok
-            // Trace(0, 1) * every_row(),
-            // Trace(1, 1) * every_row(),
-            m_trace.clone(),
-            m_trace.clone() * m_trace.clone() - Trace(0, 0) - Trace(0, 0),
-            (m_trace.clone() * m_trace.clone() - Trace(0, 0) - Trace(0, 0)  - Trace(0, 1) ) * every_row(),
-            (m_trace.clone() * ( Trace(0, 0) - Trace(0, 1)) - Trace(1, 0) - Trace(1, 1)) * every_row(),
+            // m_denominator (citatel)
+            ((Trace(0,0) + Trace(0,0) + Trace(0,0)) * Trace(0,0) + Constant(FieldElement::one())
+                - Trace(2, 0)) * every_row(),
+            // m_nominator (jmenovatel)
+            (Trace(3, 0) - (Trace(1, 0) + Trace(1, 0))) * every_row(),
+            // m
+            (Trace(4, 0) * Trace(3, 0) - Trace(2, 0)) * every_row(),
+            // trace[(i, 5)] = &m * &m - x - x; ... new x
+            (Trace(4, 0) * Trace(4, 0) - Trace(0,0) - Trace(0, 0)
+                - Trace(5, 0)) * every_row(),
+            // trace[(i, 6)] = m * (x - &trace[(i, 5)]) - y; ... new y
+            (Trace(4, 0) * (Trace(0,0)  - Trace(5, 0)) - Trace(1, 0)
+                - Trace(6, 0)) * every_row(),
+
         ])
             .unwrap()
     }
@@ -113,7 +113,7 @@ impl Provable<&Witness> for NDoublingPointClaim{
     fn trace(&self, witness: &Witness) -> TraceTable {
         let trace_length = (self.index+1).next_power_of_two();
         // let trace_length = self.index+1;
-        let mut trace = TraceTable::new(trace_length, 4);
+        let mut trace = TraceTable::new(trace_length, 7);
 
         // let m = ((x + x + x) * x + FieldElement::one()) / (y + y);
         // let nx = &m * &m - x - x;
@@ -136,16 +136,23 @@ impl Provable<&Witness> for NDoublingPointClaim{
             let x = &trace[(i, 0)].clone();
             let y = &trace[(i, 1)].clone();
             let m = ((x + x + x) * x + FieldElement::one()) / (y + y);
-            info!("m is {:?}", &m);
-            trace[(i, 2)] = &m * &m - x - x;
-            trace[(i, 3)] = m * (x - &trace[(i, 2)]) - y;
+            // info!("m is {:?}", &m);
+            trace[(i, 2)] = ((x + x + x) * x + FieldElement::one());
+            trace[(i, 3)] = y + y;
+            trace[(i, 4)] = m.clone();
+            trace[(i, 5)] = m.clone() * m.clone() - x - x;
+            trace[(i, 6)] = m.clone() * (x - &trace[(i, 5)]) - y;
             info!("Trace {:?}, 0: {:?}", i, trace[(i, 0)]);
             info!("Trace {:?}, 1: {:?}", i, trace[(i, 1)]);
             info!("Trace {:?}, 2: {:?}", i, trace[(i, 2)]);
             info!("Trace {:?}, 3: {:?}", i, trace[(i, 3)]);
+            info!("Trace {:?}, 4: {:?}", i, trace[(i, 4)]);
+            info!("Trace {:?}, 5: {:?}", i, trace[(i, 5)]);
+            info!("Trace {:?}, 6: {:?}", i, trace[(i, 6)]);
 
-            prev_c0 = trace[(i, 2)].clone();
-            prev_c1 = trace[(i, 3)].clone();
+
+            prev_c0 = trace[(i, 5)].clone();
+            prev_c1 = trace[(i, 6)].clone();
         }
         trace
     }
@@ -188,9 +195,9 @@ fn main() {
         // index: 1,
 
         // n = 2
-        x_result: field_element!("a7da05a4d664859ccd6e567b935cdfbfe3018c7771cb980892ef38878ae9bc"),
-        y_result: field_element!("0584b0c2bc833a4c88d62b387e0ef868cae2eaaa288f4ca7b34c84b46ca031b6"),
-        index: 2,
+        // x_result: field_element!("a7da05a4d664859ccd6e567b935cdfbfe3018c7771cb980892ef38878ae9bc"),
+        // y_result: field_element!("0584b0c2bc833a4c88d62b387e0ef868cae2eaaa288f4ca7b34c84b46ca031b6"),
+        // index: 2,
 
 
         // n = 3
@@ -204,9 +211,9 @@ fn main() {
         // index: 4,
 
         // n = 5
-        // x_result: field_element!("045f571e26cc38d3e6fdce1b659350f93e272cac9834b78eb8681f7ef89239aa"),
-        // y_result: field_element!("05abd8de04bd2c3b7890082929fcd2e1aa252e9508f39e19637456eb1d7cc493"),
-        // index: 5,
+        x_result: field_element!("045f571e26cc38d3e6fdce1b659350f93e272cac9834b78eb8681f7ef89239aa"),
+        y_result: field_element!("05abd8de04bd2c3b7890082929fcd2e1aa252e9508f39e19637456eb1d7cc493"),
+        index: 5,
 
         //
         // 6 :
