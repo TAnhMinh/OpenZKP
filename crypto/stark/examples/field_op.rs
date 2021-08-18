@@ -137,13 +137,13 @@ impl Provable<&Witness> for AddNTimesClaim {
     }
 }
 fn main() {
-    // FindingMatchAdd();
-    //AddNTimesConstruction()
-    // InversionConstruction();
-    ComputeMConstruction();
+    // finding_match_add();
+    //add_ntimes_construction()
+    // inversion_construction();
+    compute_m_construction();
 }
 
-fn ComputeMConstruction(){
+fn compute_m_construction(){
     env_logger::init();
     info!("Constructing claim");
     let claim = ComputeMClaim {
@@ -177,7 +177,7 @@ fn ComputeMConstruction(){
     info!("Time elapsed in proof function is: {:?}", duration);
 }
 
-fn InversionConstruction(){
+fn inversion_construction(){
     env_logger::init();
     info!("Constructing claim");
     let claim = InversionClaim {
@@ -227,7 +227,7 @@ fn InversionConstruction(){
 
 }
 //TODO parameters for index, value and secret
-fn AddNTimesConstruction(){
+fn add_ntimes_construction(){
     env_logger::init();
 
     info!("Constructing claim");
@@ -258,7 +258,7 @@ fn AddNTimesConstruction(){
     info!("Time elapsed in proof function is: {:?}", duration);
 }
 
-fn FindingMatchAdd(){
+fn finding_match_add(){
     env_logger::init();
 
     info!("Constructing witness");

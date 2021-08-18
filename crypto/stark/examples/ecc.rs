@@ -2,12 +2,12 @@ use env_logger;
 use log::info;
 use std::time::Instant;
 use zkp_macros_decl::field_element;
-use zkp_primefield::{FieldElement, Root, SquareInline, One};
+use zkp_primefield::{FieldElement, Root, SquareInline, One, Zero};
 use zkp_stark::{Constraints, Provable, RationalExpression, TraceTable, Verifiable};
 use zkp_u256::U256;
 use zkp_elliptic_curve::BETA;
 
-
+#[derive(Clone, Debug)]
 struct PointOnCurveClaim {
     x : FieldElement,
     y : FieldElement,
@@ -25,7 +25,8 @@ impl Verifiable for PointOnCurveClaim{
         Constraints::from_expressions((2, 2), self.x.as_montgomery().to_bytes_be().to_vec(), vec![
             (Trace(0, 0) - &self.x) / (X - 1),
             (Trace(1, 0) - &self.y) / (X - 1),
-            (Trace(1, 0)*Trace(1, 0) - Trace(0, 0)*Trace(0, 0)*Trace(0, 0)*Trace(0, 0) - Trace(0, 0) - Constant(BETA)) / (X - 1)
+            (Trace(1, 0)*Trace(1, 0)
+                - Trace(0, 0)*Trace(0, 0)*Trace(0, 0) - Trace(0, 0) - Constant(BETA)) / (X - 1)
         ])
             .unwrap()
     }
@@ -181,6 +182,11 @@ struct NMultiplicationPointClaim {
 // }
 
 fn main() {
+    // n_doubling_construction();
+    point_on_curve_construction();
+}
+
+fn n_doubling_construction(){
     env_logger::init();
 
     // From algebra/elliptic-curve/src/curve.rs test_double
@@ -250,4 +256,38 @@ fn main() {
     // Measure time
     let duration = start.elapsed();
     info!("Time elapsed in proof function is: {:?}", duration);
+
+}
+
+fn point_on_curve_construction(){
+    env_logger::init();
+
+    // From algebra/elliptic-curve/src/curve.rs test_double
+    info!("Constructing claim");
+    let claim = PointOnCurveClaim {
+        x: field_element!("01ef15c18599971b7beced415a40f0c7deacfd9b0d1819e03d723d8bc943cfca"),
+        y: field_element!("005668060aa49730b7be4801df46ec62de53ecd11abe43a32873000c36e8dc1f")
+
+        
+    };
+    info!("Claim: {:?}", claim);
+
+    // info!("Constructing witness");
+    // let witness = Witness {
+    //     secret: field_element!("cafebabe"),
+    // };
+    // info!("Witness: {:?}", witness);
+
+    assert_eq!(claim.check(&FieldElement::zero()), Ok(()));
+
+    // Start timer
+    let start = Instant::now();
+
+    info!("Constructing proof...");
+    let _proof = claim.prove(&FieldElement::zero()).unwrap();
+
+    // Measure time
+    let duration = start.elapsed();
+    info!("Time elapsed in proof function is: {:?}", duration);
+
 }
