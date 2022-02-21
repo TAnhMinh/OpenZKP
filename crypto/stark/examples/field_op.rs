@@ -125,22 +125,22 @@ impl Provable<&Witness> for AddNTimesClaim {
     fn trace(&self, witness: &Witness) -> TraceTable {
         let trace_length = self.index.next_power_of_two();
         let mut trace = TraceTable::new(trace_length, 2);
-        trace[(0, 0)] = self.value.clone();
+        trace[(0, 0)] = 0.into();
         trace[(0, 1)] = witness.secret.clone();
         for i in 0..(trace_length - 1) {
             trace[(i + 1, 1)] = witness.secret.clone();
             trace[(i + 1, 0)] = &trace[(i, 0)] + &trace[(i, 1)];
-            // trace[(i + 1, 1)] = trace[(i, 1)].clone();
-            // trace[(i + 1, 0)] = &trace[(i, 0)] + &trace[(i, 1)];
+            //println!("[{:?},0] = {:?}",i, trace[(i, 0)] );
+            //println!("[{:?},0] = {:?}",i, trace[(i, 1)] );
         }
         trace
     }
 }
 fn main() {
-    // finding_match_add();
+    finding_match_add();
     //add_ntimes_construction()
-    // inversion_construction();
-    compute_m_construction();
+    //inversion_construction();
+    //compute_m_construction();
 }
 
 fn compute_m_construction(){
@@ -269,12 +269,13 @@ fn finding_match_add(){
     info!("Witness: {:?}", witness);
 
     let mut cx = FieldElement::one();
-    for n in 1..1001 {
+    //let mut cx = field_element!("0f");
+    for n in 1..101 {
         let claim2 = AddNTimesClaim {
             index: 5,
             value: cx.clone(),  // or: FieldElement::from_uint(&U256::from(n))
         };
-        // println!("Checking for secret {:?} and value {:?}", witness.secret, cx);
+        println!("Checking for secret {:?} and value {:?} at index {:?}", witness.secret, cx, n);
         if claim2.check(&witness) == Ok(()) {
             println!("Found the match {:?}, {:?}", n, cx);
             break;
