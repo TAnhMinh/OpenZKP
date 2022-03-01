@@ -2,10 +2,14 @@ use env_logger;
 use log::info;
 use std::time::Instant;
 use zkp_macros_decl::field_element;
-use zkp_primefield::{FieldElement, Root, SquareInline, One, Zero};
+use zkp_primefield::{FieldElement, Root, SquareInline, One, Zero, PrimeField};
 use zkp_stark::{Constraints, Provable, RationalExpression, TraceTable, Verifiable};
 use zkp_u256::U256;
-use zkp_elliptic_curve::BETA;
+use zkp_elliptic_curve::{BETA, ScalarFieldElement};
+use zkp_primefield::u256::Binary;
+use std::borrow::Borrow;
+//use zkp_primefield::u256::Binary;
+//use zkp_primefield::u256::Binary;
 
 #[derive(Clone, Debug)]
 struct PointOnCurveClaim {
@@ -159,32 +163,201 @@ impl Provable<&Witness> for NDoublingPointClaim{
     }
 }
 
-// TODO
-struct NMultiplicationPointClaim {
-    x_start : FieldElement,
-    y_start : FieldElement,
-    x_result : FieldElement,
-    y_result : FieldElement,
-    index : usize,
-}
-
-// impl Verifiable for NMultiplicationPointClaim{
+//TODO
+// #[derive(Clone, Debug)]
+// struct MultiplicationPointClaim {
+//     x_start : FieldElement,
+//     y_start : FieldElement,
+//     x_result : FieldElement,
+//     y_result : FieldElement,
+//
+//     //scalar
+//     scalar : ScalarFieldElement,
+// }
+//
+// impl Verifiable for MultiplicationPointClaim{
+//     // assuming y is not zero
 //     fn constraints(&self) -> Constraints {
 //         use RationalExpression::*;
+//
+//         // Seed
+//         let mut seed = self.scalar.to_be_bytes().to_vec();
+//         //self.index.to_be_bytes().to_vec();
+//         seed.extend_from_slice(&self.x_start.as_montgomery().to_bytes_be());
+//         seed.extend_from_slice(&self.y_start.as_montgomery().to_bytes_be());
+//
+//         // Constraint repetitions
+//         let trace_length = (self.index+1).next_power_of_two();
+//         let trace_generator = FieldElement::root(trace_length).unwrap();
+//         let g = Constant(trace_generator);
+//         let on_row = |index| (X - g.pow(index)).inv();
+//         let every_row = || (X - g.pow(trace_length - 1)) / (X.pow(trace_length) - 1);
+//
+//         let m_trace : RationalExpression =  ((Trace(0,0) + Trace(0,0) + Trace(0,0)) * Trace(0,0) + Constant(FieldElement::one()) ) / ( Trace(1,0) + Trace(1,0));
+//
+//         Constraints::from_expressions((trace_length, 7), seed, vec![
+//             // Boundary Constraints
+//             (Trace(0, 0) - &self.x_start) * on_row(0),
+//             (Trace(1, 0) - &self.y_start) * on_row(0),
+//             (Trace(0, 0) - &self.x_result) * on_row(self.index),
+//             (Trace(1, 0) - &self.y_result) * on_row(self.index),
+//
+//             // check that result of each row is "previous" on  the next row
+//             (Trace(5, 0) - Trace(0, 1)) * every_row(),
+//             (Trace(6, 0) - Trace(1, 1)) * every_row(),
+//
+//             // m_denominator (citatel)
+//             ((Trace(0,0) + Trace(0,0) + Trace(0,0)) * Trace(0,0) + Constant(FieldElement::one())
+//                 - Trace(2, 0)) * every_row(),
+//             // m_nominator (jmenovatel)
+//             (Trace(3, 0) - (Trace(1, 0) + Trace(1, 0))) * every_row(),
+//             // m
+//             (Trace(4, 0) * Trace(3, 0) - Trace(2, 0)) * every_row(),
+//             // trace[(i, 5)] = &m * &m - x - x; ... new x
+//             (Trace(4, 0) * Trace(4, 0) - Trace(0,0) - Trace(0, 0)
+//                 - Trace(5, 0)) * every_row(),
+//             // trace[(i, 6)] = m * (x - &trace[(i, 5)]) - y; ... new y
+//             (Trace(4, 0) * (Trace(0,0)  - Trace(5, 0)) - Trace(1, 0)
+//                 - Trace(6, 0)) * every_row(),
+//
+//         ])
+//             .unwrap()
 //     }
 // }
-
-
-// impl Provable<&Witness> for NMultiplicationPointClaim{
-//     fn trace(&self, witness: &Witness) -> TraceTable {
+//
+#[derive(Clone, Debug)]
+struct WitnessMul {
+    x_start : FieldElement,
+    y_start : FieldElement,
+    scalar: ScalarFieldElement,
+    //scalar: ScalarFieldElement
+    //Note: scalar.bin(i) = i-th LSB
+}
+//
+//
+// according to https://github.com/GuildOfWeavers/genSTARK/blob/master/examples/elliptic/pointmul.aa
+// impl Provable<&WitnessMul> for MultiplicationPointClaim{
+//     fn trace(&self, witness: &WitnessMul) -> TraceTable {
+//         //256 bit scalar
+//         let trace_length = 256;
+//         let mut trace = TraceTable::new(trace_length, 13);
+//
+//         let mut prev_s0 = witness.x_start.clone();
+//         let mut prev_s1 = witness.y_start.clone();
+//
+//
+//         // trace[(0, 0)] = prev_c0.clone();
+//         // trace[(0, 1)] = prev_c1.clone();
+//         //
+//         // // dummy values
+//         // trace[(0, 2)] = prev_c0.clone();
+//         // trace[(0, 3)] = prev_c1.clone();
+//
+//         // Setting public register, ~ initTrace
+//
+//         for i in 0..(trace_length) {
+//             // Private registers (5)
+//             trace[(i, 0)] = prev_c0.clone();
+//             trace[(i, 1)] = prev_c1.clone();
+//             trace[(i, 2)] = witness.scalar.bin(i);
+//             trace[(i, 3)] = field_element!("00"); //?? mask
+//             trace[(i, 4)] = 2.pow(i as u32).into();
+//
+//             info!("Trace {:?}, 0: {:?}", i, trace[(i, 0)]);
+//             info!("Trace {:?}, 1: {:?}", i, trace[(i, 1)]);
+//             info!("Trace {:?}, 2: {:?}", i, trace[(i, 2)]);
+//             info!("Trace {:?}, 3: {:?}", i, trace[(i, 3)]);
+//             info!("Trace {:?}, 4: {:?}", i, trace[(i, 4)]);
+//
+//             // Public registers (8)
+//
+//             // prev_c0 = trace[(i, 5)].clone();
+//             // prev_c1 = trace[(i, 6)].clone();
 //         }
+//         trace
 //     }
 // }
+
 
 fn main() {
-    // n_doubling_construction();
-    point_on_curve_construction();
+    //n_doubling_construction();
+    // point_on_curve_construction();
+    let x = format!("{:x}", 2_i32.pow(5));
+    assert_eq!(x, "20");
+    let fe : FieldElement = 2_i32.pow(5).into();
+    println!("{}", x);
+    println!("{:?}", fe);
+
+    let witness = WitnessMul  {
+        x_start : 2.into(),
+        y_start : 4.into(),
+        scalar : 13.into()
+
+    };
+
+    // let trace_length = 256;
+    let trace_length = 4;
+    let mut trace = TraceTable::new(trace_length, 13);
+
+    let mut prev_s0 = witness.x_start.clone();
+    let mut prev_s1 = witness.y_start.clone();
+
+    // implementing the setup for first row of public columns
+    // corresponds to initTrace in https://github.com/GuildOfWeavers/genSTARK/blob/master/examples/elliptic/pointmul.aa
+    let mut pub_array_row : Vec<FieldElement> = vec![];
+
+    let m1 = computeM1(prev_s0.borrow(), prev_s1.borrow());
+
+    pub_array_row.push(witness.x_start.clone());
+    pub_array_row.push(witness.y_start.clone());
+    pub_array_row.push(FieldElement::zero());
+    pub_array_row.push(FieldElement::zero());
+    pub_array_row.push(m1);
+    pub_array_row.push(FieldElement::zero());
+    pub_array_row.push(1.into());
+    pub_array_row.push(FieldElement::zero());
+
+    // for i in 0..8{
+    //     println!("Init pub row {}: {:?}", i, pub_array_row[i]);
+    // }
+
+    // Writing into the private columns (5 columns)
+    for i in 0..(trace_length) {
+        // Private registers (5 columns)
+        trace[(i, 0)] = prev_s0.clone(); //?? not sure
+        trace[(i, 1)] = prev_s1.clone(); //?? not sure yet
+        let aux : i32 = witness.scalar.to_uint().bit(i).into();
+        trace[(i, 2)] = aux.into();
+        trace[(i, 3)] = field_element!("00"); //?? mask
+        trace[(i, 4)] = 2_i32.pow(i as u32).into();
+
+        println!("Trace {:?}, 0: {:?}", i, trace[(i, 0)]);
+        println!("Trace {:?}, 1: {:?}", i, trace[(i, 1)]);
+        println!("Trace {:?}, 2: {:?}", i, trace[(i, 2)]);
+        println!("Trace {:?}, 3: {:?}", i, trace[(i, 3)]);
+        println!("Trace {:?}, 4: {:?}", i, trace[(i, 4)]);
+
+        // Public registers (8 columns)
+
+
+        // prev_c0 = trace[(i, 5)].clone();
+        // prev_c1 = trace[(i, 6)].clone();
+    }
+
+    // Writing into public columns (8 columns)
+
 }
+
+fn computeM1(x : &FieldElement, y: &FieldElement)->FieldElement{
+    // println!("x: {:?}", x);
+    // println!("y: {:?}", y);
+    let mut m : FieldElement = (x + x + x) * x + &1.into();
+    // println!("m: {:?}", m);
+    m = m / (y + y);
+    // println!("m final: {:?}", m);
+    m
+}
+
 
 fn n_doubling_construction(){
     env_logger::init();
