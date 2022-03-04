@@ -46,15 +46,7 @@ impl Verifiable for Claim {
                 / (X.pow(trace_length) - 1.into())
         };
 
-        let row_double = point_double(Trace(1, 0), Trace(2, 0), Trace(1, 1), Trace(2, 1));
-        let row_add = point_add(
-            Trace(1, 0),
-            Trace(2, 0),
-            Trace(3, 0),
-            Trace(4, 0),
-            Trace(3, 1),
-            Trace(4, 1),
-        );
+
         Constraints::new(vec![
             on_hash_loop_rows(row_double[0].clone()),
             on_hash_loop_rows(row_double[1].clone()),

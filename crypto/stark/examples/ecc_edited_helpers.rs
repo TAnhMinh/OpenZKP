@@ -126,8 +126,7 @@ pub fn scalar_mult(trace: &mut TraceTable, point: (FieldElement, FieldElement), 
         info!("Trace {:?}, 2: {:?}", i, trace[(i, 2)]);
         info!("Trace {:?}, 3: {:?}", i, trace[(i, 3)]);
         info!("Trace {:?}, 4: {:?}", i, trace[(i, 4)]);
-        info!();
-    }
+        info!(" ");
     }
 }
 
