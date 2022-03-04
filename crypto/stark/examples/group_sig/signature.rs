@@ -112,7 +112,7 @@ mod test {
             u256h!("03c1e9550e66958296d11b60f8e8e7a7ad990d07fa65d5f7652c4a6c87d4e3cc");
         let message_hash =
             u256h!("01921ce52df68f0185ade7572776513304bdd4a07faf6cf28cefc65a86fc496c");
-        let public_affine = ecc::private_to_public(&private_key);
+        let public_affine = ecc::privaterr_to_public(&private_key);
         let public = match public_affine.clone() {
             Affine::Zero => (FieldElement::ZERO, FieldElement::ZERO),
             Affine::Point { x, y } => (x, y),
