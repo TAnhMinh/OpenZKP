@@ -13,6 +13,20 @@ use std::time::Instant;
 
 mod ecc_edited_helpers;
 
+// Q from
+// generated as E.gens() in sage
+pub const Q: (FieldElement, FieldElement) = (
+    field_element!("006a5158f04306cef4b1f5aaf8f1f526df12610ef9c887a15b3ce889026713a0"),
+    field_element!("0712cc1ae399832de8d77288bb9fb18ac0d0eb518926caf8c621204ba21bf450")
+);
+
+// P from
+// generated as E.random_element()
+pub const P: (FieldElement, FieldElement) = (
+    field_element!("0684e355013c3279284f196c2f7482464f90b1d8148a848374fb0f4f9252097d"),
+    field_element!("0670608843e71391085ffe01a161e5a36129de68dd8b26a8e446feb0ad025bbe")
+);
+
 // Witness for scalar_mul claim
 #[derive(Clone, Debug)]
 struct Witness {
