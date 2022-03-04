@@ -28,9 +28,9 @@ struct Claim {
     y_result : FieldElement,
 }
 
-impl Provable<Witness> for Claim {
+impl Provable<&Witness> for Claim {
     #[cfg(feature = "prover")]
-    fn trace(&self, witness : Witness) -> TraceTable {
+    fn trace(&self, witness : &Witness) -> TraceTable {
         let mut trace = TraceTable::new(256, 5);
         let start_point = (self.x_start.clone(), self.y_start.clone());
         scalar_mult(&mut trace, start_point, &witness.scalar, 0, 0, false);
@@ -73,14 +73,20 @@ impl Verifiable for Claim {
             on_hash_loop_rows(row_double[0].clone()),
             on_hash_loop_rows(row_double[1].clone()),
             on_hash_loop_rows(one_or_zero((Trace(0,0) - Constant(2.into())*Trace(0, 1)))),
-            on_hash_loop_rows(simple_conditional(row_add[0].clone(), Trace(3, 1) - Trace(3, 0), Trace(0,0) - Constant(2.into())*Trace(0, 1))),
-            on_hash_loop_rows(simple_conditional(row_add[1].clone(), Trace(4, 1) - Trace(4, 0), Trace(0,0) - Constant(2.into())*Trace(0, 1))),
-            on_hash_loop_rows(Trace(5, 0) - Trace(5, 1)),
-            //Boundary Constraints
+            on_hash_loop_rows(simple_conditional(
+                row_add[0].clone(),
+                Trace(3, 1) - Trace(3, 0),
+                Trace(0,0) - Constant(2.into())*Trace(0, 1))),
+            on_hash_loop_rows(simple_conditional(
+                row_add[1].clone(),
+                Trace(4, 1) - Trace(4, 0),
+                Trace(0,0) - Constant(2.into())*Trace(0, 1))),
+            // Boundary Constraints
+            // the following two lines correct when in scalar_mult we in fact accept max 255 bit scalars
             (Trace(1, 0) - Constant(self.x_start.clone()))*on_row(0),
             (Trace(2, 0) - Constant(self.y_start.clone()))*on_row(0),
-            (Trace(1, 0) - Constant(self.x_result.clone()))*on_row(256),
-            (Trace(2, 0) - Constant(self.y_result.clone()))*on_row(256),
+            (Trace(3, 0) - Constant(self.x_result.clone()))*on_row(255),
+            (Trace(4, 0) - Constant(self.y_result.clone()))*on_row(255),
 
         ]).unwrap()
     }
@@ -88,8 +94,9 @@ impl Verifiable for Claim {
 
 fn main() {
     // How to know the non-montgomery form of shift.x, shift.y
-    println!("shift_x: {:?}", SHIFT_POINT.0);
-    println!("shift_y: {:?}", SHIFT_POINT.1);
+    // println!("shift_x: {:?}", SHIFT_POINT.0);
+    // println!("shift_y: {:?}", SHIFT_POINT.1);
+    smult_construction();
 
 
 }
@@ -103,8 +110,8 @@ fn smult_construction(){
     let claim = Claim {
         x_start: field_element!("01ef15c18599971b7beced415a40f0c7deacfd9b0d1819e03d723d8bc943cfca"),
         y_start: field_element!("005668060aa49730b7be4801df46ec62de53ecd11abe43a32873000c36e8dc1f"),
-        x_result:field_element!("007e7981dbdcab7a12e82a71563265fe17d1e468def04dc824c342bd113b8a6ba"),
-        y_result: field_element!("0074af28209b54a0943e10972953ae3acc93ca2d74caf5b07c0a833fbb9aba0ff")
+        x_result: field_element!("07e7981dbdcab7a12e82a71563265fe17d1e468def04dc824c342bd113b8a6ba"),
+        y_result: field_element!("074af28209b54a0943e10972953ae3acc93ca2d74caf5b07c0a833fbb9aba0ff")
     };
     info!("Claim: {:?}", claim);
 

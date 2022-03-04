@@ -103,11 +103,12 @@ pub fn scalar_mult(trace: &mut TraceTable, point: (FieldElement, FieldElement), 
         q = SHIFT_POINT.clone();
     }
 
+    // Note: will multiply correctly only with scalar with max 255 bits!
     for i in 0..256 {
-        // trace[(start+i, offset + 1)] = n.0.clone();
-        // trace[(start+i, offset + 2)] = n.1.clone();
-        // trace[(start+i, offset + 3)] = q.0.clone();
-        // trace[(start+i, offset + 4)] = q.1.clone();
+        trace[(start+i, offset + 1)] = n.0.clone();
+        trace[(start+i, offset + 2)] = n.1.clone();
+        trace[(start+i, offset + 3)] = q.0.clone();
+        trace[(start+i, offset + 4)] = q.1.clone();
 
         if scalar.bit(i) {
             trace[(start + i, offset)] = FieldElement::one();
@@ -116,10 +117,10 @@ pub fn scalar_mult(trace: &mut TraceTable, point: (FieldElement, FieldElement), 
             trace[(start + i, offset)] = FieldElement::zero();
         }
         n = double(&n.0, &n.1);
-        trace[(start+i, offset + 1)] = n.0.clone();
-        trace[(start+i, offset + 2)] = n.1.clone();
-        trace[(start+i, offset + 3)] = q.0.clone();
-        trace[(start+i, offset + 4)] = q.1.clone();
+        // trace[(start+i, offset + 1)] = n.0.clone();
+        // trace[(start+i, offset + 2)] = n.1.clone();
+        // trace[(start+i, offset + 3)] = q.0.clone();
+        // trace[(start+i, offset + 4)] = q.1.clone();
 
         info!("Trace {:?}, 0: {:?}", i, trace[(i, 0)]);
         info!("Trace {:?}, 1: {:?}", i, trace[(i, 1)]);
