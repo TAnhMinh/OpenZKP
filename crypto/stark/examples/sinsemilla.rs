@@ -5,7 +5,7 @@ use zkp_primefield::{FieldElement, One, SquareInline, Zero, Root};
 use zkp_stark::RationalExpression::*;
 use zkp_stark::{Constraints, Provable, RationalExpression, TraceTable, Verifiable};
 use zkp_primefield::u256::Binary;
-use zkp_elliptic_curve::{ScalarFieldElement, Affine};
+use zkp_elliptic_curve::{ScalarFieldElement, Affine, window_table_affine};
 use env_logger;
 use log::info;
 use crate::ecc_edited_helpers::*;
@@ -42,6 +42,7 @@ struct Claim {
     y_result : FieldElement,
 }
 
+// for scalar multiplication
 impl Provable<&Witness> for Claim {
     #[cfg(feature = "prover")]
     fn trace(&self, witness : &Witness) -> TraceTable {
@@ -52,6 +53,7 @@ impl Provable<&Witness> for Claim {
     }
 }
 
+// for scalar multiplication
 impl Verifiable for Claim {
     fn constraints(&self) -> Constraints {
         use RationalExpression::*;
@@ -101,6 +103,106 @@ impl Verifiable for Claim {
             (Trace(2, 0) - Constant(self.y_start.clone()))*on_row(0),
             (Trace(3, 0) - Constant(self.x_result.clone()))*on_row(255),
             (Trace(4, 0) - Constant(self.y_result.clone()))*on_row(255),
+
+        ]).unwrap()
+    }
+}
+
+// Witness for sinsemilla claim, message of 2 blocks of 256 bits
+#[derive(Clone, Debug)]
+struct SinsemillaWitness {
+    m1: U256,
+    m2: U256
+}
+
+// Scalar_mult claim
+#[derive(Clone, Debug)]
+struct SinsemillaClaim {
+    x_result : FieldElement,
+    y_result : FieldElement,
+    blocks_num: usize,
+}
+
+// for Sinsemilla Claim
+impl Provable<&Witness> for SinsemillaClaim {
+    #[cfg(feature = "prover")]
+    fn trace(&self, witness : &SinsemillaWitness) -> TraceTable {
+        let mut trace = TraceTable::new(512, 11);
+        let start_point = (P.0, P.1);
+        trace[(0, 0)] = Q.0;
+        trace[(0, 1)] = Q.1;
+        scalar_mult(&mut trace, start_point.clone(), &witness.m1, 0, 2, false);
+
+        // Acc_i+1 = Acc_i + m_i*P + Acc_i, i = 0
+        let acc_1_aux = add(&Q.0, &Q.1, &trace[(255, 5)], &trace[(255, 6)]);
+        trace[(255, 7)] = acc_1_aux.0;
+        trace[(255, 8)] = acc_1_aux.1;
+        let acc_1_fin = add(&Q.0, &Q.1, &trace[(255, 7)], &trace[(255, 8)]);
+        trace[(255, 9)] = acc_1_fin.0;
+        trace[(255, 10)] = acc_1_fin.1;
+
+        trace[(0, 0)] = trace[(255, 9)].clone;
+        trace[(0, 1)] = trace[(255, 10)].clone;
+        scalar_mult(&mut trace, start_point.clone(), &witness.m2, 256, 2, true);
+
+        // Acc_i+1 = Acc_i + m_i*P + Acc_i, i = 1
+        let acc_2_aux = add(&Q.0, &Q.1, &trace[(512, 5)], &trace[(512, 6)]);
+        trace[(512, 7)] = acc_2_aux.0;
+        trace[(512, 8)] = acc_2_aux.1;
+        let acc_2_fin = add(&Q.0, &Q.1, &trace[(512, 7)], &trace[(512, 8)]);
+        trace[(512, 9)] = acc_2_fin.0;
+        trace[(512, 10)] = acc_2_fin.1;
+        trace
+    }
+}
+
+impl Verifiable for SinsemillaClaim {
+    fn constraints(&self) -> Constraints {
+        use RationalExpression::*;
+        use zkp_primefield::Pow;
+
+        let trace_length = 256;
+        let trace_generator = FieldElement::root(trace_length).unwrap();
+
+        let mut seed = self.x_start.as_montgomery().to_bytes_be().to_vec();
+        seed.extend_from_slice(&self.y_start.as_montgomery().to_bytes_be());
+        seed.extend_from_slice(&self.x_result.as_montgomery().to_bytes_be());
+        seed.extend_from_slice(&self.y_result.as_montgomery().to_bytes_be());
+
+        // Constraint repetitions
+        let g = Constant(trace_generator.clone());
+        let on_row = |index| (X - g.pow(index)).inv();
+        let on_hash_loop_rows = |a: RationalExpression| {
+            a * (X.pow(256) - Constant(trace_generator.pow(256 * (trace_length - 1))))
+                / (X.pow(trace_length) - FieldElement::one())
+        };
+
+        let row_double = point_double(Trace(1, 0), Trace(2, 0), Trace(1, 1), Trace(2, 1));
+        let row_add = point_add(
+            Trace(1, 0),
+            Trace(2, 0),
+            Trace(3, 0),
+            Trace(4, 0),
+            Trace(3, 1),
+            Trace(4, 1),
+        );
+
+        Constraints::from_expressions((trace_length, 11), seed, vec![
+            on_hash_loop_rows(row_double[0].clone()),
+            on_hash_loop_rows(row_double[1].clone()),
+            on_hash_loop_rows(one_or_zero((Trace(0,0) - Constant(2.into())*Trace(0, 1)))),
+            on_hash_loop_rows(simple_conditional(
+                row_add[0].clone(),
+                Trace(3, 1) - Trace(3, 0),
+                Trace(0,0) - Constant(2.into())*Trace(0, 1))),
+            on_hash_loop_rows(simple_conditional(
+                row_add[1].clone(),
+                Trace(4, 1) - Trace(4, 0),
+                Trace(0,0) - Constant(2.into())*Trace(0, 1))),
+            // Boundary Constraints
+            // the following two lines correct when in scalar_mult we in fact accept max 255 bit scalars
+            (Trace(3, 0) - Constant(self.x_result.clone()))*on_row(512),
+            (Trace(4, 0) - Constant(self.y_result.clone()))*on_row(512),
 
         ]).unwrap()
     }
