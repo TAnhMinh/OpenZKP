@@ -132,6 +132,7 @@ impl Provable<&SinsemillaWitness> for SinsemillaClaim {
         trace[(0, 0)] = Q.0;
         trace[(0, 1)] = Q.1;
         scalar_mult(&mut trace, start_point.clone(), &witness.m1, 0, 2, false);
+        // copy acc into rows below!
 
         // Acc_i+1 = Acc_i + m_i*P + Acc_i, i = 0
         let acc_1_aux = add(&Q.0, &Q.1, &trace[(255, 5)], &trace[(255, 6)]);
@@ -141,9 +142,10 @@ impl Provable<&SinsemillaWitness> for SinsemillaClaim {
         trace[(255, 9)] = acc_1_fin.0;
         trace[(255, 10)] = acc_1_fin.1;
 
-        trace[(0, 0)] = trace[(255, 9)].clone();
-        trace[(0, 1)] = trace[(255, 10)].clone();
+        trace[(256, 0)] = trace[(255, 9)].clone();
+        trace[(256, 1)] = trace[(255, 10)].clone();
         scalar_mult(&mut trace, start_point.clone(), &witness.m2, 256, 2, true);
+        // copy acc into rows below!
 
         // Acc_i+1 = Acc_i + m_i*P + Acc_i, i = 1
         let acc_2_aux = add(&Q.0, &Q.1, &trace[(511, 5)], &trace[(512, 6)]);
@@ -175,15 +177,15 @@ impl Verifiable for SinsemillaClaim {
                 / (X.pow(trace_length) - FieldElement::one())
         };
 
-        let row_double = point_double(Trace(1, 0), Trace(2, 0), Trace(1, 1), Trace(2, 1));
+        let row_double = point_double(Trace(3, 0), Trace(4, 0), Trace(3, 1), Trace(4,1));
         let row_add = point_add(
-            Trace(1, 0),
-            Trace(2, 0),
             Trace(3, 0),
             Trace(4, 0),
-            Trace(3, 1),
-            Trace(4, 1),
-        );
+            Trace(5, 0),
+            Trace(6, 0),
+            Trace(5, 1),
+            Trace(6, 1),
+        );]9
 
         Constraints::from_expressions((trace_length, 11), seed, vec![
             on_hash_loop_rows(row_double[0].clone()),
@@ -192,15 +194,29 @@ impl Verifiable for SinsemillaClaim {
             on_hash_loop_rows(simple_conditional(
                 row_add[0].clone(),
                 Trace(3, 1) - Trace(3, 0),
-                Trace(0,0) - Constant(2.into())*Trace(0, 1))),
+                Trace(2,0) - Constant(2.into())*Trace(2, 1))),
             on_hash_loop_rows(simple_conditional(
                 row_add[1].clone(),
                 Trace(4, 1) - Trace(4, 0),
-                Trace(0,0) - Constant(2.into())*Trace(0, 1))),
+                Trace(2,0) - Constant(2.into())*Trace(2, 1))),
+            (Trace(9,0) - Trace(0, 1))*on_row(255),
+            (Trace(10, 0) - Trace(1, 1))*on_row(255),
+            point_add(Trace(0, 0), Trace(1, 0),
+                      Trace(5, 0), Trace(6, 0),
+                      Trace(7, 0), Trace(8, 0))*on_row(255),
+            point_add(Trace(0, 0), Trace(1, 0),
+                      Trace(7, 0), Trace(8, 0),
+                      Trace(9, 0), Trace(10, 0))*on_row(255),
+            point_add(Trace(0, 0), Trace(1, 0),
+                      Trace(5, 0), Trace(6, 0),
+                      Trace(7, 0), Trace(8, 0))*on_row(511),
+            point_add(Trace(0, 0), Trace(1, 0),
+                      Trace(7, 0), Trace(8, 0),
+                      Trace(9, 0), Trace(10, 0))*on_row(511),
             // Boundary Constraints
             // the following two lines correct when in scalar_mult we in fact accept max 255 bit scalars
-            (Trace(3, 0) - Constant(self.x_result.clone()))*on_row(512),
-            (Trace(4, 0) - Constant(self.y_result.clone()))*on_row(512),
+            (Trace(9, 0) - Constant(self.x_result.clone()))*on_row(511),
+            (Trace(10, 0) - Constant(self.y_result.clone()))*on_row(511),
 
         ]).unwrap()
     }
@@ -214,12 +230,6 @@ fn sinsemilla(message : Vec<U256>)->(FieldElement, FieldElement){
         let m_scalar = ScalarFieldElement::from(message[i].clone());
         acc = acc.double() + p.clone() * m_scalar
     }
-    // match checked_division(dividend, divisor) {
-    //     None => println!("{} / {} failed!", dividend, divisor),
-    //     Some(quotient) => {
-    //         println!("{} / {} = {}", dividend, divisor, quotient)
-    //     },
-    // }
     match acc.as_coordinates() {
         None => (FieldElement::zero(), FieldElement::zero()),
         Some((x, y)) => (x.clone(), y.clone())
@@ -232,11 +242,13 @@ fn main() {
     // println!("shift_y: {:?}", SHIFT_POINT.1);
     //smult_construction();
 
-    //Test sinsemilla function
+    // Test sinsemilla function
+    // When comparing with the Claims, only the messages with even number of blocks will work!!
     let mut message : Vec<U256> = Vec::new();
     message.push(u256h!("dead"));
     message.push(u256h!("cafe"));
     message.push(u256h!("babe"));
+    message.push(u256h!("abcd"));
 
     let res = sinsemilla(message);
     println!("Result x: {:?}", res.0);
