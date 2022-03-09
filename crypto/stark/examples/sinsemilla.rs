@@ -127,33 +127,53 @@ struct SinsemillaClaim {
 impl Provable<&SinsemillaWitness> for SinsemillaClaim {
     #[cfg(feature = "prover")]
     fn trace(&self, witness : &SinsemillaWitness) -> TraceTable {
-        let mut trace = TraceTable::new(512, 11);
+        let mut trace = TraceTable::new(512, 13);
         let start_point = (P.0, P.1);
         trace[(0, 0)] = Q.0;
         trace[(0, 1)] = Q.1;
         scalar_mult(&mut trace, start_point.clone(), &witness.m1, 0, 2, false);
         // copy acc into rows below!
+        for i in 1..256 {
+            trace[(i, 0)] = Q.0;
+            trace[(i, 1)] = Q.1;
+        }
 
         // Acc_i+1 = Acc_i + m_i*P + Acc_i, i = 0
-        let acc_1_aux = add(&Q.0, &Q.1, &trace[(255, 5)], &trace[(255, 6)]);
+        let mut acc_1_aux = add(&Q.0, &Q.1, &trace[(255, 5)], &trace[(255, 6)]);
         trace[(255, 7)] = acc_1_aux.0;
         trace[(255, 8)] = acc_1_aux.1;
-        let acc_1_fin = add(&Q.0, &Q.1, &trace[(255, 7)], &trace[(255, 8)]);
-        trace[(255, 9)] = acc_1_fin.0;
-        trace[(255, 10)] = acc_1_fin.1;
+        acc_1_aux = add(&Q.0, &Q.1, &trace[(255, 7)], &trace[(255, 8)]);
+        trace[(255, 9)] = acc_1_aux.0;
+        trace[(255, 10)] = acc_1_aux.1;
+        let acc_1_fin = add(&trace[(255, 9)], &trace[(255, 10)], &SHIFT_POINT.0,  &-SHIFT_POINT.1);
+        trace[(255, 11)] = acc_1_fin.0;
+        trace[(255, 12)] = acc_1_fin.1;
 
-        trace[(256, 0)] = trace[(255, 9)].clone();
-        trace[(256, 1)] = trace[(255, 10)].clone();
-        scalar_mult(&mut trace, start_point.clone(), &witness.m2, 256, 2, true);
+        info!("Intermediate result from inside Verifier x: {:?}", trace[(255, 11)]);
+        info!("Intermediate result from inside Verifier y: {:?}", trace[(255, 12)]);
+
+        trace[(256, 0)] = trace[(255, 11)].clone();
+        trace[(256, 1)] = trace[(255, 12)].clone();
+        scalar_mult(&mut trace, start_point.clone(), &witness.m2, 256, 2, false);
         // copy acc into rows below!
+        for i in 257..512 {
+            trace[(i, 0)] = trace[(256, 0)].clone();
+            trace[(i, 1)] = trace[(256, 1)].clone();
+        }
 
         // Acc_i+1 = Acc_i + m_i*P + Acc_i, i = 1
-        let acc_2_aux = add(&Q.0, &Q.1, &trace[(511, 5)], &trace[(512, 6)]);
+        let mut acc_2_aux = add(&trace[(511, 0)], &trace[(511, 1)], &trace[(511, 5)], &trace[(511, 6)]);
         trace[(511, 7)] = acc_2_aux.0;
         trace[(511, 8)] = acc_2_aux.1;
-        let acc_2_fin = add(&Q.0, &Q.1, &trace[(511, 7)], &trace[(512, 8)]);
-        trace[(511, 9)] = acc_2_fin.0;
-        trace[(511, 10)] = acc_2_fin.1;
+        acc_2_aux = add(&trace[(511, 0)], &trace[(511, 1)], &trace[(511, 7)], &trace[(511, 8)]);
+        trace[(511, 9)] = acc_2_aux.0;
+        trace[(511, 10)] = acc_2_aux.1;
+        let acc_2_fin = add(&trace[(511, 9)], &trace[(511, 10)], &SHIFT_POINT.0,  &-SHIFT_POINT.1);
+        trace[(511, 11)] = acc_2_fin.0;
+        trace[(511, 12)] = acc_2_fin.1;
+
+        info!("Result from inside Verifier x: {:?}", trace[(511, 11)]);
+        info!("Result from inside Verifier y: {:?}", trace[(511, 12)]);
         trace
     }
 }
@@ -163,7 +183,7 @@ impl Verifiable for SinsemillaClaim {
         use RationalExpression::*;
         use zkp_primefield::Pow;
 
-        let trace_length = 256;
+        let trace_length = 512;
         let trace_generator = FieldElement::root(trace_length).unwrap();
 
         let mut seed = self.x_result.as_montgomery().to_bytes_be().to_vec();
@@ -185,43 +205,54 @@ impl Verifiable for SinsemillaClaim {
             Trace(6, 0),
             Trace(5, 1),
             Trace(6, 1),
-        );]9
+        );
+        let acc_add_1 = point_add(Trace(0, 0), Trace(1, 0),
+                                  Trace(5, 0), Trace(6, 0),
+                                  Trace(7, 0), Trace(8, 0));
+        let acc_add_2 = point_add(Trace(0, 0), Trace(1, 0),
+                                  Trace(7, 0), Trace(8, 0),
+                                  Trace(9, 0), Trace(10, 0));
+        let add_shift = point_add( Constant(SHIFT_POINT.0), Constant(-SHIFT_POINT.1),
+                                        Trace(9, 0), Trace(10, 0),
+                                            Trace(11, 0), Trace(12, 0));
 
-        Constraints::from_expressions((trace_length, 11), seed, vec![
+        Constraints::from_expressions((trace_length, 13), seed, vec![
             on_hash_loop_rows(row_double[0].clone()),
             on_hash_loop_rows(row_double[1].clone()),
-            on_hash_loop_rows(one_or_zero((Trace(0,0) - Constant(2.into())*Trace(0, 1)))),
+            on_hash_loop_rows(one_or_zero(Trace(2, 0))),
             on_hash_loop_rows(simple_conditional(
                 row_add[0].clone(),
-                Trace(3, 1) - Trace(3, 0),
-                Trace(2,0) - Constant(2.into())*Trace(2, 1))),
+                Trace(5, 1) - Trace(5, 0),
+                Trace(2,0))),
             on_hash_loop_rows(simple_conditional(
                 row_add[1].clone(),
-                Trace(4, 1) - Trace(4, 0),
-                Trace(2,0) - Constant(2.into())*Trace(2, 1))),
-            (Trace(9,0) - Trace(0, 1))*on_row(255),
-            (Trace(10, 0) - Trace(1, 1))*on_row(255),
-            point_add(Trace(0, 0), Trace(1, 0),
-                      Trace(5, 0), Trace(6, 0),
-                      Trace(7, 0), Trace(8, 0))*on_row(255),
-            point_add(Trace(0, 0), Trace(1, 0),
-                      Trace(7, 0), Trace(8, 0),
-                      Trace(9, 0), Trace(10, 0))*on_row(255),
-            point_add(Trace(0, 0), Trace(1, 0),
-                      Trace(5, 0), Trace(6, 0),
-                      Trace(7, 0), Trace(8, 0))*on_row(511),
-            point_add(Trace(0, 0), Trace(1, 0),
-                      Trace(7, 0), Trace(8, 0),
-                      Trace(9, 0), Trace(10, 0))*on_row(511),
+                Trace(6, 1) - Trace(6, 0),
+                Trace(2,0))),
+            (Trace(11,0) - Trace(0, 1))*on_row(255),
+            (Trace(12, 0) - Trace(1, 1))*on_row(255),
+            acc_add_1[0].clone()*on_row(255),
+            acc_add_1[1].clone()*on_row(255),
+            acc_add_2[0].clone()*on_row(255),
+            acc_add_2[1].clone()*on_row(255),
+            add_shift[0].clone()*on_row(255),
+            add_shift[1].clone()*on_row(255),
+            acc_add_1[0].clone()*on_row(511),
+            acc_add_1[1].clone()*on_row(511),
+            acc_add_2[0].clone()*on_row(511),
+            acc_add_2[1].clone()*on_row(511),
+            add_shift[0].clone()*on_row(511),
+            add_shift[1].clone()*on_row(511),
             // Boundary Constraints
             // the following two lines correct when in scalar_mult we in fact accept max 255 bit scalars
-            (Trace(9, 0) - Constant(self.x_result.clone()))*on_row(511),
-            (Trace(10, 0) - Constant(self.y_result.clone()))*on_row(511),
+            (Trace(11, 0) - Constant(self.x_result.clone()))*on_row(511),
+            (Trace(12, 0) - Constant(self.y_result.clone()))*on_row(511),
 
         ]).unwrap()
     }
 }
 
+
+// Function for computing Sinsemilla hash function
 fn sinsemilla(message : Vec<U256>)->(FieldElement, FieldElement){
     let mut acc = Affine::Point{ x: Q.0, y: Q.1 };
     let p = Affine::Point {x: P.0, y: P.1};
@@ -244,15 +275,54 @@ fn main() {
 
     // Test sinsemilla function
     // When comparing with the Claims, only the messages with even number of blocks will work!!
-    let mut message : Vec<U256> = Vec::new();
-    message.push(u256h!("dead"));
-    message.push(u256h!("cafe"));
-    message.push(u256h!("babe"));
-    message.push(u256h!("abcd"));
+    // let mut message : Vec<U256> = Vec::new();
+    // message.push(u256h!("dead"));
+    // message.push(u256h!("cafe"));
+    // message.push(u256h!("babe"));
+    // message.push(u256h!("abcd"));
+    //
+    // let res = sinsemilla(message);
+    // println!("Result x: {:?}", res.0);
+    // println!("Result y: {:?}", res.1);
 
-    let res = sinsemilla(message);
-    println!("Result x: {:?}", res.0);
-    println!("Result y: {:?}", res.1);
+    sinsemilla_construction();
+
+}
+
+fn sinsemilla_construction(){
+    env_logger::init();
+
+    info!("Constructing witness");
+    let witness = SinsemillaWitness {
+        m1: u256h!("abcd"),
+        m2: u256h!("cafe")
+    };
+    let message = vec!(witness.m1.clone(), witness.m2.clone());
+    let result = sinsemilla(message);
+    println!("Result x: {:?}", result.0);
+    println!("Result y: {:?}", result.1);
+
+    info!("Constructing claim");
+    let claim = SinsemillaClaim {
+        x_result: result.0,
+        y_result: result.1,
+        blocks_num: 2,
+    };
+    info!("Claim: {:?}", claim);
+
+    info!("Witness: {:?}", witness);
+
+    assert_eq!(claim.check(&witness), Ok(()));
+
+    // Start timer
+    let start = Instant::now();
+
+    info!("Constructing proof...");
+    let _proof = claim.prove(&witness).unwrap();
+
+    // Measure time
+    let duration = start.elapsed();
+    info!("Time elapsed in proof function is: {:?}", duration);
 
 }
 
