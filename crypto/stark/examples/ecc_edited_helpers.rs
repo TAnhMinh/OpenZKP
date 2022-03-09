@@ -122,11 +122,11 @@ pub fn scalar_mult(trace: &mut TraceTable, point: (FieldElement, FieldElement), 
         // trace[(start+i, offset + 3)] = q.0.clone();
         // trace[(start+i, offset + 4)] = q.1.clone();
 
-        info!("Trace {:?}, 0: {:?}", i, trace[(i, 0)]);
-        info!("Trace {:?}, 1: {:?}", i, trace[(i, 1)]);
-        info!("Trace {:?}, 2: {:?}", i, trace[(i, 2)]);
-        info!("Trace {:?}, 3: {:?}", i, trace[(i, 3)]);
-        info!("Trace {:?}, 4: {:?}", i, trace[(i, 4)]);
+        info!("Trace {:?}, 0: {:?}", i, trace[(start + i, offset + 0)]);
+        info!("Trace {:?}, 1: {:?}", i, trace[(start + i, offset + 1)]);
+        info!("Trace {:?}, 2: {:?}", i, trace[(start + i, offset + 2)]);
+        info!("Trace {:?}, 3: {:?}", i, trace[(start + i, offset + 3)]);
+        info!("Trace {:?}, 4: {:?}", i, trace[(start + i, offset + 4)]);
         info!(" ");
     }
 }
